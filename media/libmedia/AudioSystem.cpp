@@ -47,6 +47,12 @@ uint32_t AudioSystem::gPrevInSamplingRate = 16000;
 audio_format_t AudioSystem::gPrevInFormat = AUDIO_FORMAT_PCM_16_BIT;
 audio_channel_mask_t AudioSystem::gPrevInChannelMask = AUDIO_CHANNEL_IN_MONO;
 size_t AudioSystem::gInBuffSize = 0;
+#ifdef STE_AUDIO
+// Clients for receiving latency update notifications
+Mutex AudioSystem::gLatencyLock;
+int AudioSystem::gNextUniqueLatencyId = 0;
+DefaultKeyedVector<int, sp<AudioSystem::NotificationClient> > AudioSystem::gLatencyNotificationClients(0);
+#endif
 
 
 // establish binder interface to AudioFlinger service
@@ -423,11 +429,37 @@ status_t AudioSystem::setFmVolume(float value)
     return af->setFmVolume(value);
 }
 #endif
+#ifdef STE_AUDIO
+int AudioSystem::registerLatencyNotificationClient(latency_update_callback cb,
+        void *cookie, audio_io_handle_t output) {
+    Mutex::Autolock _l(gLatencyLock);
+
+    sp<NotificationClient> notificationClient = new NotificationClient();
+    notificationClient->mCb = cb;
+    notificationClient->mCookie = cookie;
+    notificationClient->mOutput = output;
+
+    gNextUniqueLatencyId++;
+    gLatencyNotificationClients.add(gNextUniqueLatencyId, notificationClient);
+    return gNextUniqueLatencyId;
+}
+
+void AudioSystem::unregisterLatencyNotificationClient(int clientId) {
+    Mutex::Autolock _l(gLatencyLock);
+    gLatencyNotificationClients.removeItem(clientId);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who) {
     Mutex::Autolock _l(AudioSystem::gLock);
+#ifdef STE_AUDIO
+    gLatencyLock.lock();
+    AudioSystem::gLatencyNotificationClients.clear();
+    gLatencyLock.unlock();
+#endif
+
 
     AudioSystem::gAudioFlinger.clear();
     // clear output handles and stream to output map caches
@@ -492,6 +524,22 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         outputDesc =  new OutputDescriptor(*desc);
         gOutputs.replaceValueFor(ioHandle, outputDesc);
     } break;
+#ifdef STE_AUDIO
+    case SINK_LATENCY_CHANGED: {
+        int sinkLatency = *((int*)param2);
+        gLock.unlock();
+        gLatencyLock.lock();
+        size_t size = gLatencyNotificationClients.size();
+        for (size_t i = 0; i < size; i++) {
+            sp<NotificationClient> client = gLatencyNotificationClients.valueAt(i);
+            if (client->mOutput == ioHandle) {
+                (*client->mCb)(client->mCookie, ioHandle, sinkLatency);
+            }
+        }
+        gLatencyLock.unlock();
+        gLock.lock();
+    } break;
+#endif
     case INPUT_OPENED:
     case INPUT_CLOSED:
     case INPUT_CONFIG_CHANGED:
@@ -615,6 +663,14 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
     return aps->getOutput(stream, samplingRate, format, channelMask, flags);
 }
 
+extern "C" audio_io_handle_t _ZN7android11AudioSystem9getOutputE19audio_stream_type_tjjj27audio_policy_output_flags_t(audio_stream_type_t stream,
+                                    uint32_t samplingRate,
+                                    uint32_t format,
+                                    uint32_t channels,
+                                    audio_output_flags_t flags) {
+    return AudioSystem::getOutput(stream,samplingRate,(audio_format_t) format, channels, flags);
+}
+
 status_t AudioSystem::startOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   int session)
@@ -644,11 +700,20 @@ audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
+#ifdef STE_AUDIO
+                                    int sessionId,
+                                    audio_input_clients *inputClientId)
+#else
                                     int sessionId)
+#endif
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
+#ifdef STE_AUDIO
+    return aps->getInput(inputSource, samplingRate, format, channelMask, sessionId, inputClientId);
+#else
     return aps->getInput(inputSource, samplingRate, format, channelMask, sessionId);
+#endif
 }
 
 status_t AudioSystem::startInput(audio_io_handle_t input)
@@ -792,12 +857,13 @@ void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who) {
 
     ALOGW("AudioPolicyService server died!");
 }
+
 #ifdef USE_SAMSUNG_SEPARATEDSTREAM
 extern "C" bool _ZN7android11AudioSystem17isSeparatedStreamE19audio_stream_type_t(audio_stream_type_t stream)
 {
-   ALOGD("audio_stream_type_t: %d", stream);
-   ALOGD("isSeparatedStream: false");
-   return false;
+    ALOGD("audio_stream_type_t: %d", stream);
+    ALOGD("isSeparatedStream: false");
+    return false;
 }
 #endif // USE_SAMSUNG_SEPARATEDSTREAM
 
