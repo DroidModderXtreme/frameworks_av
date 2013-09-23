@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2010 - 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010 - 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,6 +89,9 @@ struct OMXCodec : public MediaSource,
 
     // from MediaBufferObserver
     virtual void signalBufferReturned(MediaBuffer *buffer);
+#ifdef STE_HARDWARE
+    static uint32_t OmxToHALFormat(OMX_COLOR_FORMATTYPE omxValue);
+#endif
 
     enum Quirks {
         kNeedsFlushBeforeDisable              = 1,
@@ -107,6 +110,12 @@ struct OMXCodec : public MediaSource,
 #ifdef QCOM_HARDWARE
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
         kRequiresWMAProComponent              = 0x40000000, //2^30
+#endif
+#ifdef STE_HARDWARE
+        kRequiresStoreMetaDataBeforeIdle      = 16384,
+#endif
+#if defined(OMAP_ENHANCEMENT)
+	kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
     };
 
@@ -368,6 +377,9 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
+#if defined(OMAP_ENHANCEMENT)
+    void restorePatchedDataPointer(BufferInfo *info);
+#endif
 
     status_t applyRotation();
     status_t waitForBufferFilled_l();
@@ -386,9 +398,7 @@ private:
 #ifdef QCOM_HARDWARE
     status_t setWMAFormat(const sp<MetaData> &inputFormat);
     void setAC3Format(int32_t numChannels, int32_t sampleRate);
-    bool mNumBFrames;
 #endif
-
 };
 
 struct CodecCapabilities {
