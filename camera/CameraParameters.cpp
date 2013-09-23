@@ -232,6 +232,29 @@ const char CameraParameters::KEY_GPU_EFFECT_PARAM_3[] = "GE-param3";
 const char CameraParameters::KEY_FORCE_USE_AUDIO_ENABLED[] = "forceuseaudio";
 #endif
 
+#ifdef LG_CAMERA_HARDWARE
+const char CameraParameters::AUDIO_ZOOM_OFF[] = "audio-zoom";
+const char CameraParameters::AUDIO_ZOOM_ON[] = "audio-zoom";
+const char CameraParameters::BEAUTY_SHOT_OFF[] = "beauty-shot";
+const char CameraParameters::BEAUTY_SHOT_ON[] = "beauty-shot";
+const char CameraParameters::BURST_SHOT_OFF[] = "burst-shot";
+const char CameraParameters::BURST_SHOT_ON[] = "burst-shot";
+const char CameraParameters::KEY_AUDIO_ZOOM[] = "audio-zoom";
+const char CameraParameters::KEY_AUDIO_ZOOM_SUPPORTED[] = "audio-zoom-supported";
+const char CameraParameters::KEY_BEAUTY_SHOT[] = "beauty-shot";
+const char CameraParameters::KEY_BEAUTY_SHOT_SUPPORTED[] = "beauty-shot-supported";
+const char CameraParameters::KEY_BURST_SHOT[] = "burst-shot";
+const char CameraParameters::KEY_BURST_SHOT_SUPPORTED[] = "burst-shot-supported";
+const char CameraParameters::KEY_FOCUS_MODE_OBJECT_TRACKING[] = "object-tracking";
+const char CameraParameters::KEY_FOCUS_MODE_OBJECT_TRACKING_SUPPORTED[] = "object-tracking-supported";
+const char CameraParameters::KEY_VIDEO_WDR[] = "video-wdr";
+const char CameraParameters::KEY_VIDEO_WDR_SUPPORTED[] = "video-wdr-supported";
+const char CameraParameters::VIDEO_WDR_OFF[] = "video-wdr";
+const char CameraParameters::VIDEO_WDR_ON[] = "video-wdr";
+const char CameraParameters::OBJECT_TRACKING_ON[] = "object-tracking";
+const char CameraParameters::OBJECT_TRACKING_OFF[] = "object-tracking";
+#endif
+
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";
@@ -305,6 +328,12 @@ const char CameraParameters::SCENE_MODE_FIREWORKS[] = "fireworks";
 const char CameraParameters::SCENE_MODE_SPORTS[] = "sports";
 const char CameraParameters::SCENE_MODE_PARTY[] = "party";
 const char CameraParameters::SCENE_MODE_CANDLELIGHT[] = "candlelight";
+#ifdef STE_SAMSUNG_HARDWARE
+const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "backlight";
+const char CameraParameters::SCENE_MODE_DUSKDAWN[] = "duskdawn";
+const char CameraParameters::SCENE_MODE_FALLCOLOR[] = "fallcolor";
+const char CameraParameters::SCENE_MODE_TEXT[] = "text";
+#endif
 #ifdef QCOM_HARDWARE
 #ifdef SAMSUNG_CAMERA_LEGACY
 const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "back-light";
@@ -330,6 +359,14 @@ const char CameraParameters::PIXEL_FORMAT_YUV422SP[] = "yuv422sp";
 const char CameraParameters::PIXEL_FORMAT_YUV420SP[] = "yuv420sp";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::PIXEL_FORMAT_YUV420SP_ADRENO[] = "yuv420sp-adreno";
+#endif
+#ifdef STE_HARDWARE
+const char CameraParameters::PIXEL_FORMAT_YUV420SPNV12[] = "yuv420spnv12";
+const char CameraParameters::PIXEL_FORMAT_YUV420MB[] = "yuv420mb";
+const char CameraParameters::PIXEL_FORMAT_YVU422SP[] = "yvu422sp";
+const char CameraParameters::PIXEL_FORMAT_YVU422P[] = "yvu422p";
+const char CameraParameters::PIXEL_FORMAT_YVU420SP[] = "yvu420sp";
+const char CameraParameters::PIXEL_FORMAT_YVU420P[]  = "yvu420p";
 #endif
 const char CameraParameters::PIXEL_FORMAT_YUV422I[] = "yuv422i-yuyv";
 const char CameraParameters::PIXEL_FORMAT_YUV420P[]  = "yuv420p";
@@ -508,6 +545,11 @@ void CameraParameters::setOrientation(int orientation)
 }
 #endif
 
+#ifdef STE_HARDWARE
+// keys for record stride and sliceheight
+const char CameraParameters::KEY_RECORD_STRIDE[] = "record-stride";
+const char CameraParameters::KEY_RECORD_SLICE_HEIGHT[] = "record-slice-height";
+#endif
 
 CameraParameters::CameraParameters()
                 : mMap()
@@ -582,7 +624,7 @@ void CameraParameters::set(const char *key, const char *value)
         return;
     }
 
-    if (strchr(value, '=') || strchr(value, ';')) {
+    if (strchr(value, '=') || strchr(key, ';')) {
         //XXX ALOGE("Value \"%s\"contains invalid character (= or ;)", value);
         return;
     }
@@ -621,10 +663,10 @@ int CameraParameters::getInt(const char *key) const
 }
 
 #ifdef SAMSUNG_CAMERA_HARDWARE
-   int CameraParameters::getInt64(const char *key) const
-   {
-   return -1;
-   }
+int CameraParameters::getInt64(const char *key) const
+{
+    return -1;
+}
 #endif
 
 float CameraParameters::getFloat(const char *key) const
