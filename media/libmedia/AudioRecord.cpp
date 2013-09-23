@@ -1,7 +1,7 @@
 /*
 **
 ** Copyright 2008, The Android Open Source Project
-** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -81,8 +81,18 @@ status_t AudioRecord::getMinFrameCount(
 
 AudioRecord::AudioRecord()
     : mStatus(NO_INIT), mSessionId(0),
+#ifdef STE_AUDIO
+      mpInputClientId(NULL),
+#endif
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        mpInputClientId = (audio_input_clients*)audioFlinger->addInputClient(
+                                                 (uint32_t)AUDIO_INPUT_CLIENT_RECORD);
+    }
+#endif
 }
 
 AudioRecord::AudioRecord(
@@ -96,8 +106,19 @@ AudioRecord::AudioRecord(
         int notificationFrames,
         int sessionId)
     : mStatus(NO_INIT), mSessionId(0),
+#ifdef STE_AUDIO
+      mpInputClientId(NULL),
+#endif
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        mpInputClientId = (audio_input_clients*)audioFlinger->addInputClient(
+                                                 (uint32_t)AUDIO_INPUT_CLIENT_RECORD);
+    }
+#endif
+
     mStatus = set(inputSource, sampleRate, format, channelMask,
             frameCount, cbf, user, notificationFrames, sessionId);
 }
@@ -118,6 +139,12 @@ AudioRecord::~AudioRecord()
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
     }
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        audioFlinger->removeInputClient((uint32_t*)mpInputClientId);
+    }
+#endif
 }
 
 status_t AudioRecord::set(
@@ -136,7 +163,6 @@ status_t AudioRecord::set(
     ALOGV("set(): sampleRate %d, channelMask %#x, frameCount %d",sampleRate, channelMask, frameCount);
 
     AutoMutex lock(mLock);
-    status_t status;
 
     if (mAudioRecord != 0) {
         return INVALID_OPERATION;
@@ -180,67 +206,24 @@ status_t AudioRecord::set(
                                                     sampleRate,
                                                     format,
                                                     channelMask,
+#ifdef STE_AUDIO
+                                                    mSessionId,
+                                                    mpInputClientId);
+#else
                                                     mSessionId);
+#endif
+
     if (input == 0) {
         ALOGE("Could not get audio input for record source %d", inputSource);
         return BAD_VALUE;
     }
 
-#ifdef QCOM_HARDWARE
-    size_t inputBuffSizeInBytes = -1;
-    if (AudioSystem::getInputBufferSize(sampleRate, format, channelCount, &inputBuffSizeInBytes)
-            != NO_ERROR) {
-        ALOGE("AudioSystem could not query the input buffer size.");
-        return NO_INIT;
-    }
-    ALOGV("AudioRecord::set() inputBuffSizeInBytes = %d", inputBuffSizeInBytes );
-
-    if (inputBuffSizeInBytes == 0) {
-        ALOGE("Recording parameters are not supported: sampleRate %d, channelCount %d, format %d",
-            sampleRate, channelCount, format);
-        return BAD_VALUE;
-    }
-
-    // Change for Codec type
-    int frameSizeInBytes = 0;
-    if(inputSource == AUDIO_SOURCE_VOICE_COMMUNICATION) {
-        if (audio_is_linear_pcm(format)) {
-             frameSizeInBytes = channelCount * (format == AUDIO_FORMAT_PCM_16_BIT ? sizeof(int16_t)
-: sizeof(int8_t));
-        } else {
-             frameSizeInBytes = channelCount *sizeof(int16_t);
-        }
-    } else {
-        if (format ==AUDIO_FORMAT_AMR_NB) {
-             frameSizeInBytes = channelCount * 32; // Full rate framesize
-        } else if (format ==AUDIO_FORMAT_EVRC) {
-             frameSizeInBytes = channelCount * 23; // Full rate framesize
-        } else if (format ==AUDIO_FORMAT_QCELP) {
-             frameSizeInBytes = channelCount * 35; // Full rate framesize
-        } else if (format ==AUDIO_FORMAT_AAC) {
-             frameSizeInBytes = 2048;
-        } else if ((format ==AUDIO_FORMAT_PCM_16_BIT) || (format ==AUDIO_FORMAT_PCM_8_BIT)) {
-             if (audio_is_linear_pcm(format)) {
-                  frameSizeInBytes = channelCount * (format == AUDIO_FORMAT_PCM_16_BIT ? sizeof(int16_t) : sizeof(int8_t));
-             } else {
-                  frameSizeInBytes = sizeof(int8_t);
-             }
-        } else if(format == AUDIO_FORMAT_AMR_WB) {
-            frameSizeInBytes = channelCount * 61;
-
-        }
-    }
-    // We use 2* size of input buffer for ping pong use of record buffer.
-    int minFrameCount = 2 * inputBuffSizeInBytes / frameSizeInBytes;
-#else
     // validate framecount
     int minFrameCount = 0;
-    status = getMinFrameCount(&minFrameCount, sampleRate, format, channelMask);
+    status_t status = getMinFrameCount(&minFrameCount, sampleRate, format, channelMask);
     if (status != NO_ERROR) {
         return status;
     }
-#endif
-
     ALOGV("AudioRecord::set() minFrameCount = %d", minFrameCount);
 
     if (frameCount == 0) {
@@ -252,11 +235,10 @@ status_t AudioRecord::set(
     if (notificationFrames == 0) {
         notificationFrames = frameCount/2;
     }
-
-#ifdef QCOM_HARDWARE
-    //update mInputSource before openRecord_l
-    mInputSource = inputSource;
+#ifndef STE_AUDIO
+mInputSource = inputSource;
 #endif
+
     // create the IAudioRecord
     status = openRecord_l(sampleRate, format, channelMask,
                         frameCount, input);
@@ -287,7 +269,7 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-#ifndef QCOM_HARDWARE
+#ifdef STE_AUDIO
     mInputSource = inputSource;
 #endif
     mInput = input;
@@ -325,36 +307,11 @@ uint32_t AudioRecord::frameCount() const
 
 size_t AudioRecord::frameSize() const
 {
-#ifdef QCOM_HARDWARE
-    if(inputSource() == AUDIO_SOURCE_VOICE_COMMUNICATION) {
-        if (audio_is_linear_pcm(mFormat)) {
-             return channelCount()*audio_bytes_per_sample(mFormat);
-        } else {
-            return channelCount()*sizeof(int16_t);
-        }
+    if (audio_is_linear_pcm(mFormat)) {
+        return channelCount()*audio_bytes_per_sample(mFormat);
     } else {
-        if (format() ==AUDIO_FORMAT_AMR_NB) {
-             return channelCount() * 32; // Full rate framesize
-        } else if (format() == AUDIO_FORMAT_EVRC) {
-             return channelCount() * 23; // Full rate framesize
-        } else if (format() == AUDIO_FORMAT_QCELP) {
-             return channelCount() * 35; // Full rate framesize
-        } else if (format() == AUDIO_FORMAT_AAC) {
-            // Not actual framsize but for variable frame rate AAC encoding,
-           // buffer size is treated as a frame size
-             return 2048;
-        } else if(format() == AUDIO_FORMAT_AMR_WB) {
-            return channelCount() * 61;
-        }
-#endif
-        if (audio_is_linear_pcm(mFormat)) {
-            return channelCount()*audio_bytes_per_sample(mFormat);
-        } else {
-            return sizeof(uint8_t);
-        }
-#ifdef QCOM_HARDWARE
+        return sizeof(uint8_t);
     }
-#endif
 }
 
 audio_source_t AudioRecord::inputSource() const
@@ -534,7 +491,7 @@ status_t AudioRecord::openRecord_l(
                                                        sampleRate, format,
                                                        channelMask,
                                                        frameCount,
-                                                       (int16_t)inputSource(),
+                                                       IAudioFlinger::TRACK_DEFAULT,
                                                        tid,
                                                        &mSessionId,
                                                        &status);
