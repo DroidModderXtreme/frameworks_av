@@ -69,21 +69,16 @@ status_t AudioTrack::getMinFrameCount(
     //          audio_format_t format
     //          audio_channel_mask_t channelMask
     //          audio_output_flags_t flags
-    int afSampleRate = 0;
+    int afSampleRate;
     if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
         return NO_INIT;
     }
-    int afFrameCount = 0;
+    int afFrameCount;
     if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
         return NO_INIT;
     }
-    uint32_t afLatency = 0;
+    uint32_t afLatency;
     if (AudioSystem::getOutputLatency(&afLatency, streamType) != NO_ERROR) {
-        return NO_INIT;
-    }
-
-    if(!afSampleRate || !afFrameCount) {
-        ALOGW("samplerate or framecount 0");
         return NO_INIT;
     }
 
@@ -92,8 +87,7 @@ status_t AudioTrack::getMinFrameCount(
     if (minBufCount < 2) minBufCount = 2;
 
     *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
-                afFrameCount * minBufCount * sampleRate / afSampleRate;
-
+            afFrameCount * minBufCount * sampleRate / afSampleRate;
     ALOGV("getMinFrameCount=%d: afFrameCount=%d, minBufCount=%d, afSampleRate=%d, afLatency=%d",
             *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
@@ -198,6 +192,10 @@ AudioTrack::~AudioTrack()
     ALOGV_IF(mSharedBuffer != 0, "Destructor sharedBuffer: %p", mSharedBuffer->pointer());
 
     if (mStatus == NO_ERROR) {
+#ifdef STE_AUDIO
+        AudioSystem::unregisterLatencyNotificationClient(mLatencyClientId);
+#endif
+
         // Make sure that callback function exits in the case where
         // it is looping on buffer full condition in obtainBuffer().
         // Otherwise the callback thread will never exit.
@@ -396,10 +394,14 @@ status_t AudioTrack::set(
     mFormat = format;
     mChannelMask = channelMask;
     mChannelCount = channelCount;
-
+#ifdef STE_AUDIO
+    mSharedBuffer = sharedBuffer;
+#endif
     mMuted = false;
     mActive = false;
-
+#ifdef STE_AUDIO
+    mUserData = user;
+#endif
     mLoopCount = 0;
     mMarkerPosition = 0;
     mMarkerReached = false;
@@ -461,23 +463,11 @@ uint32_t AudioTrack::frameCount() const
 
 size_t AudioTrack::frameSize() const
 {
-#ifdef QCOM_HARDWARE
-    if ((audio_stream_type_t)mStreamType == AUDIO_STREAM_VOICE_CALL) {
-       if (audio_is_linear_pcm(mFormat)) {
-          return channelCount()*audio_bytes_per_sample(mFormat);
-       } else {
-          return channelCount()*sizeof(int16_t);
-       }
+    if (audio_is_linear_pcm(mFormat)) {
+        return channelCount()*audio_bytes_per_sample(mFormat);
     } else {
-#endif
-        if (audio_is_linear_pcm(mFormat)) {
-            return channelCount()*audio_bytes_per_sample(mFormat);
-        } else {
-            return sizeof(uint8_t);
-        }
-#ifdef QCOM_HARDWARE
+        return sizeof(uint8_t);
     }
-#endif
 }
 
 sp<IMemory>& AudioTrack::sharedBuffer()
@@ -903,6 +893,11 @@ int AudioTrack::getSessionId() const
     return mSessionId;
 }
 
+extern "C" int _ZNK7android10AudioTrack12getSessionIdEv();
+extern "C" int _ZN7android10AudioTrack12getSessionIdEv() {
+    return _ZNK7android10AudioTrack12getSessionIdEv();
+}
+
 status_t AudioTrack::attachAuxEffect(int effectId)
 {
     ALOGV("attachAuxEffect(%d)", effectId);
@@ -993,17 +988,12 @@ status_t AudioTrack::createTrack_l(
     } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
 
         // FIXME move these calculations and associated checks to server
-        int afSampleRate = 0;
+        int afSampleRate;
         if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
             return NO_INIT;
         }
-        int afFrameCount = 0;
+        int afFrameCount;
         if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
-            return NO_INIT;
-        }
-
-        if(!afSampleRate && !afFrameCount) {
-            ALOGW("samplerate or framecount zero");
             return NO_INIT;
         }
 
@@ -1011,8 +1001,7 @@ status_t AudioTrack::createTrack_l(
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
         if (minBufCount < 2) minBufCount = 2;
 
-        uint32_t minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
-
+        int minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
         ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%d, afSampleRate=%d"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
@@ -1107,15 +1096,17 @@ status_t AudioTrack::createTrack_l(
     mCblk->waitTimeMs = 0;
     mRemainingFrames = mNotificationFramesAct;
     // FIXME don't believe this lie
-    if(sampleRate)
-        mLatency = afLatency + (1000*mCblk->frameCount) / sampleRate;
-    else
-        mLatency = afLatency;
+    mLatency = afLatency + (1000*mCblk->frameCount) / sampleRate;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
     if (mCblk->frameCount > mFrameCount) {
         mFrameCount = mCblk->frameCount;
     }
+#ifdef STE_AUDIO
+    if (mLatencyClientId != -1) {
+        AudioSystem::unregisterLatencyNotificationClient(mLatencyClientId);
+    }
+#endif
     return NO_ERROR;
 }
 
@@ -1656,6 +1647,16 @@ status_t AudioTrack::getTimeStamp(uint64_t *tstamp) {
     return NO_ERROR;
 }
 #endif
+
+#ifdef STE_AUDIO
+// static
+void AudioTrack::LatencyCallback(void *cookie, audio_io_handle_t output, uint32_t sinkLatency)
+{
+    AudioTrack *me = static_cast<AudioTrack *>(cookie);
+    me->mLatency = sinkLatency + (1000*me->mCblk->frameCount) / me->mCblk->sampleRate;
+}
+#endif
+
 
 // =========================================================================
 
