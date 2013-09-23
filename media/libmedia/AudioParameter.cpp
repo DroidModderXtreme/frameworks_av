@@ -41,6 +41,9 @@ const char * const AudioParameter::keySSR = AUDIO_PARAMETER_KEY_SSR;
 const char * const AudioParameter::keyHandleA2dpDevice = AUDIO_PARAMETER_KEY_HANDLE_A2DP_DEVICE;
 const char * const AudioParameter::keyADSPStatus = AUDIO_PARAMETER_KEY_ADSP_STATUS;
 #endif
+#ifdef STE_AUDIO
+const char *AudioParameter::keySinkLatency = "sink_latency";
+#endif
 
 AudioParameter::AudioParameter(const String8& keyValuePairs)
 {
