@@ -671,11 +671,8 @@ public:
     static const char KEY_CONTI_BURST_STATE[];
     static const char KEY_SUPPORTED_CAPTURE_MODES[];
     static const char KEY_MIN_CONTRAST[];
-    static const char KEY_DEF_CONTRAST[];
     static const char KEY_MIN_SHARPNESS[];
-    static const char KEY_DEF_SHARPNESS[];
     static const char KEY_MIN_SATURATION[];
-    static const char KEY_DEF_SATURATION[];
     static const char KEY_SINGLE_ISP_OUTPUT_ENABLED[];
     static const char POST_PROCESSING_ENABLE[];
     static const char POST_PROCESSING_BYPASS[];
@@ -695,7 +692,6 @@ public:
     static const char KEY_GPU_EFFECT_PARAM_1[];
     static const char KEY_GPU_EFFECT_PARAM_2[];
     static const char KEY_GPU_EFFECT_PARAM_3[];
-    static const char KEY_FORCE_USE_AUDIO_ENABLED[];
 #endif
 
     static const char KEY_AE_BRACKET_HDR[];
@@ -745,15 +741,6 @@ public:
     static const char EFFECT_WHITEBOARD[];
     static const char EFFECT_BLACKBOARD[];
     static const char EFFECT_AQUA[];
-#ifdef SAMSUNG_CAMERA_HARDWARE
-    static const char EFFECT_CARTOONIZE[];
-    static const char EFFECT_POINT_RED_YELLOW[];
-    static const char EFFECT_POINT_GREEN[];
-    static const char EFFECT_POINT_BLUE[];
-    static const char EFFECT_VINTAGE_COLD[];
-    static const char EFFECT_VINTAGE_WARM[];
-    static const char EFFECT_WASHED[];
-#endif
 #ifdef QCOM_HARDWARE
     static const char EFFECT_EMBOSS[];
     static const char EFFECT_SKETCH[];
@@ -802,8 +789,13 @@ public:
     static const char SCENE_MODE_SPORTS[];
     static const char SCENE_MODE_PARTY[];
     static const char SCENE_MODE_CANDLELIGHT[];
-#ifdef QCOM_HARDWARE
+#ifdef STE_HARDWARE
     static const char SCENE_MODE_BACKLIGHT[];
+    static const char SCENE_MODE_DUSKDAWN[];
+    static const char SCENE_MODE_FALLCOLOR[];
+    static const char SCENE_MODE_TEXT[];
+#endif
+#ifdef QCOM_HARDWARE
     static const char SCENE_MODE_FLOWERS[];
     static const char SCENE_MODE_AR[];
 #endif
@@ -823,11 +815,21 @@ public:
 #endif
     static const char PIXEL_FORMAT_YUV422SP[];
     static const char PIXEL_FORMAT_YUV420SP[]; // NV21
+#ifdef STE_HARDWARE
+    static const char PIXEL_FORMAT_YUV420SPNV12[]; // NV12
+#endif
 #ifdef QCOM_HARDWARE
     static const char PIXEL_FORMAT_YUV420SP_ADRENO[]; // ADRENO
 #endif
     static const char PIXEL_FORMAT_YUV422I[]; // YUY2
     static const char PIXEL_FORMAT_YUV420P[]; // YV12
+#ifdef STE_HARDWARE
+    static const char PIXEL_FORMAT_YVU422SP[];
+    static const char PIXEL_FORMAT_YVU422P[];
+    static const char PIXEL_FORMAT_YVU420SP[];
+    static const char PIXEL_FORMAT_YVU420P[];
+    static const char PIXEL_FORMAT_YUV420MB[];
+#endif
     static const char PIXEL_FORMAT_RGB565[];
     static const char PIXEL_FORMAT_RGBA8888[];
     static const char PIXEL_FORMAT_JPEG[];
@@ -894,6 +896,11 @@ public:
     // To stop continuous focus, applications should change the focus mode to
     // other modes.
     static const char FOCUS_MODE_CONTINUOUS_PICTURE[];
+#ifdef STE_HARDWARE
+    // keys for record stride and slice height
+    static const char KEY_RECORD_STRIDE[];
+    static const char KEY_RECORD_SLICE_HEIGHT[];
+#endif
 
 #ifdef QCOM_HARDWARE
 #ifdef QCOM_LEGACY_CAM_PARAMS
@@ -1007,7 +1014,6 @@ public:
     static const char HDR_ENABLE[];
     static const char HDR_DISABLE[];
 
-#if defined(QCOM_HARDWARE) && defined(SAMSUNG_CAMERA_LEGACY)
     static const char FOCUS_MODE_FACEDETECT[];
     static const char FOCUS_MODE_TOUCHAF[];
     static const char ISO_50[];
@@ -1022,12 +1028,14 @@ public:
     static const char VINTAGE_MODE_NORMAL[];
     static const char VINTAGE_MODE_OFF[];
     static const char VINTAGE_MODE_WARM[];
+#ifndef STE_HARDWARE
     static const char SCENE_MODE_DAWN[];
+#else
     static const char SCENE_MODE_DUSKDAWN[];
+#endif
     static const char SCENE_MODE_FALL[];
     static const char SCENE_MODE_FALL_COLOR[];
     static const char SCENE_MODE_TEXT[];
-#endif
 
    // Values for Redeye Reduction settings.
    // static const char REDEYE_REDUCTION_ENABLE[];
