@@ -384,6 +384,9 @@ private:
 
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
+#ifdef STE_AUDIO
+    audio_input_clients     *mpInputClientId;
+#endif
 };
 
 }; // namespace android
