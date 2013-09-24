@@ -34,6 +34,9 @@ static const struct {
     const char *mRole;
 
 } kComponents[] = {
+#ifdef STE_HARDWARE
+    { "OMX.ST.aac.decoder", "ste_aacdec", "audio_decoder.aac" },
+#endif
     { "OMX.google.aac.decoder", "aacdec", "audio_decoder.aac" },
     { "OMX.google.aac.encoder", "aacenc", "audio_encoder.aac" },
     { "OMX.google.amrnb.decoder", "amrdec", "audio_decoder.amrnb" },
@@ -49,6 +52,9 @@ static const struct {
     { "OMX.google.mpeg4.decoder", "mpeg4dec", "video_decoder.mpeg4" },
     { "OMX.google.mpeg4.encoder", "mpeg4enc", "video_encoder.mpeg4" },
     { "OMX.google.mp3.decoder", "mp3dec", "audio_decoder.mp3" },
+#ifdef STE_HARDWARE
+    { "OMX.ST.mp3.decoder", "ste_mp3dec", "audio_decoder.mp3" },
+#endif
     { "OMX.google.vorbis.decoder", "vorbisdec", "audio_decoder.vorbis" },
     { "OMX.google.vpx.decoder", "vpxdec", "video_decoder.vpx" },
     { "OMX.google.raw.decoder", "rawdec", "audio_decoder.raw" },
